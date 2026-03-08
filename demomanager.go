@@ -599,7 +599,7 @@ func generateHTMLReport(filePath, mapName, serverName string) string {
 			
 			html += fmt.Sprintf(`
 				<tr>
-					<td><strong>%s</strong>%s</td>
+					<td><strong><a href="https://steamcommunity.com/profiles/%d" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px dashed rgba(255,255,255,0.4);">%s</a></strong>%s</td>
 					<td>%d</td>
 					<td>%d</td>
 					<td>%d</td>
@@ -616,7 +616,7 @@ func generateHTMLReport(filePath, mapName, serverName string) string {
 					<td>%.1f</td>
 					<td class="fmr"><div class="fmr-container">%.2f%s</div></td>
 				</tr>
-			`, p.Name, flags, p.Kills, p.Assists, p.Deaths, kdRatio, krRatio, kastPercent, hsPercent, p.OpeningK, p.Clutches, p.MVPs, p.MultiKills[3], p.MultiKills[4], p.MultiKills[5], adr, p.FMR, mvpFlag)
+			`, p.SteamID64, p.Name, flags, p.Kills, p.Assists, p.Deaths, kdRatio, krRatio, kastPercent, hsPercent, p.OpeningK, p.Clutches, p.MVPs, p.MultiKills[3], p.MultiKills[4], p.MultiKills[5], adr, p.FMR, mvpFlag)
 		}
 		html += `</table>`
 	}
