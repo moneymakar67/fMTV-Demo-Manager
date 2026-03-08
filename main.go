@@ -84,6 +84,12 @@ func main() {
 			button:active {
 				transform: translateY(1px);
 			}
+			button:disabled {
+				background: #333;
+				color: #666;
+				cursor: not-allowed;
+				transform: none;
+			}
 			.preview-container {
 				width: 100%%;
 				max-width: 700px;
@@ -173,6 +179,11 @@ func main() {
 				lb.scrollTop = lb.scrollHeight;
 			}
 
+			function setBusy(isBusy) {
+				const buttons = document.querySelectorAll("button");
+				buttons.forEach(b => b.disabled = isBusy);
+			}
+
 			let currentReportPath = "";
 
 			function updatePreview(path) {
@@ -193,6 +204,7 @@ func main() {
 
 			// Hook into native Go functions bound by Lorca
 			async function selectFile() {
+				setBusy(true);
 				logMsg("Opening file browser...");
 				let result = await nativeSelectFile();
 				if (result.error) {
@@ -209,9 +221,11 @@ func main() {
 				} else {
 					logMsg("Selection cancelled.");
 				}
+				setBusy(false);
 			}
 
 			async function selectDirectory() {
+				setBusy(true);
 				logMsg("Opening folder browser...");
 				let result = await nativeSelectDirectory();
 				if (result.error) {
@@ -237,6 +251,7 @@ func main() {
 				} else {
 					logMsg("Selection cancelled.");
 				}
+				setBusy(false);
 			}
 		</script>
 	</body>
@@ -266,10 +281,12 @@ func main() {
 
 	// Bind native Go SelectFile function to Javascript globally
 	ui.Bind("nativeSelectFile", func() map[string]interface{} {
+		fmt.Println("[GUI] nativeSelectFile triggered")
 		filename, err := zenity.SelectFile(
-			zenity.Title("Select CSGO Demo"),
-			zenity.FileFilters{{Name: "CSGO Demo", Patterns: []string{"*.dem"}}},
+			zenity.Title("Select fragMount Demo"),
+			zenity.FileFilters{{Name: "Demo File", Patterns: []string{"*.dem"}}},
 		)
+		fmt.Println("[GUI] nativeSelectFile returned:", filename)
 		if err != nil {
 			if err == zenity.ErrCanceled {
 				return map[string]interface{}{"path": ""}
@@ -280,10 +297,12 @@ func main() {
 	})
 
 	ui.Bind("nativeSelectDirectory", func() map[string]interface{} {
+		fmt.Println("[GUI] nativeSelectDirectory triggered")
 		dir, err := zenity.SelectFile(
 			zenity.Title("Select Demo Folder"),
 			zenity.Directory(),
 		)
+		fmt.Println("[GUI] nativeSelectDirectory returned:", dir)
 		if err != nil {
 			if err == zenity.ErrCanceled {
 				return map[string]interface{}{"files": nil}
