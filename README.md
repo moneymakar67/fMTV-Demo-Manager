@@ -1,6 +1,6 @@
 # fMTV Demo Manager
 
-A standalone Windows GUI application to parse CS:GO demos and generate detailed fMTV match reports.
+A standalone Windows GUI application to parse fragMount demos and generate detailed fMTV match reports.
 
 ## Features
 - **Standalone GUI**: Built with Lorca (Chromium-based), no installation required.
