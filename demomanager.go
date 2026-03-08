@@ -426,19 +426,17 @@ func calculateFMR() {
 		adr := float64(p.Damage) / tr
 		okpr := float64(p.OpeningK) / tr
 		
-		// Approximate KAST% (Kills, Assists, Survived, Traded) 
-		// Since traded is hard, we use bounded Survival + (Kills/Rounds)*0.3 offset
-		survivedRatio := float64(p.SurvivedRounds) / tr
-		kast := clamp((survivedRatio + kpr*0.5 + apr*0.2) * 100.0, 0, 100)
+		// Use precise KAST tracking
+		kast := (float64(p.KastRounds) / tr) * 100.0
 		
-		// Multi-Kill weight
-		mk := float64(p.MultiKills[2])*0.01 + float64(p.MultiKills[3])*0.02 + float64(p.MultiKills[4])*0.05 + float64(p.MultiKills[5])*0.10
+		// Refined Multi-Kill weight
+		mk := float64(p.MultiKills[2])*0.05 + float64(p.MultiKills[3])*0.12 + float64(p.MultiKills[4])*0.25 + float64(p.MultiKills[5])*0.50
 		
-		// Clutch weight (approximate as 0 unless explicitly coded tracking was added)
+		// Clutch weight (Accurate 1vX wins)
 		cl := float64(p.Clutches)
 		
-		// Impact Formula: Impact = (2.13*KPR) + (0.42*APR) + (0.35*OKPR) + (0.15*CL) + MK - 0.41
-		impact := (2.13 * kpr) + (0.42 * apr) + (0.35 * okpr) + (0.15 * cl) + mk - 0.41
+		// Impact Formula: Impact = (2.13*KPR) + (0.42*APR) + (0.35*OKPR) + (0.25*CL) + MK - 0.41
+		impact := (2.13 * kpr) + (0.42 * apr) + (0.35 * okpr) + (0.25 * cl) + mk - 0.41
 		
 		// Quality Q metric (assuming 1.0 standard for now without deep econ tracking)
 		q := 1.0 
