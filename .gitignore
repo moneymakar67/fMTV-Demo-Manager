@@ -1,0 +1,11 @@
+# Binaries
+*.exe
+*.exe~
+
+# Reports
+*.report.html
+ui_temp.html
+
+# Go
+vendor/
+go.sum
