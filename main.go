@@ -7,11 +7,10 @@ import (
 	"log"
 	"os"
 
+	"os/exec"
 	"path/filepath"
 	"strings"
-	"os/exec"
 
-	"github.com/ncruces/zenity"
 	"github.com/zserge/lorca"
 )
 
@@ -282,32 +281,32 @@ func main() {
 	// Bind native Go SelectFile function to Javascript globally
 	ui.Bind("nativeSelectFile", func() map[string]interface{} {
 		fmt.Println("[GUI] nativeSelectFile triggered")
-		filename, err := zenity.SelectFile(
-			zenity.Title("Select fragMount Demo"),
-			zenity.FileFilters{{Name: "Demo File", Patterns: []string{"*.dem"}}},
-		)
+		
+		// PowerShell script to open file dialog (TopMost ensures it doesn't hide behind app)
+		psScript := `Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.OpenFileDialog; $f.Filter = 'Demo Files (*.dem)|*.dem'; $f.Title = 'Select fragMount Demo'; $res = $f.ShowDialog((New-Object System.Windows.Forms.Form -Property @{TopMost=$true})); if($res -eq 'OK'){ $f.FileName }`
+		
+		out, err := exec.Command("powershell", "-NoProfile", "-Command", psScript).Output()
+		filename := strings.TrimSpace(string(out))
+		
 		fmt.Println("[GUI] nativeSelectFile returned:", filename)
-		if err != nil {
-			if err == zenity.ErrCanceled {
-				return map[string]interface{}{"path": ""}
-			}
-			return map[string]interface{}{"error": err.Error()}
+		if err != nil || filename == "" {
+			return map[string]interface{}{"path": ""}
 		}
 		return map[string]interface{}{"path": filename}
 	})
 
 	ui.Bind("nativeSelectDirectory", func() map[string]interface{} {
 		fmt.Println("[GUI] nativeSelectDirectory triggered")
-		dir, err := zenity.SelectFile(
-			zenity.Title("Select Demo Folder"),
-			zenity.Directory(),
-		)
+		
+		// PowerShell script to open folder browser
+		psScript := `Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.FolderBrowserDialog; $f.Description = 'Select Demo Folder'; $res = $f.ShowDialog((New-Object System.Windows.Forms.Form -Property @{TopMost=$true})); if($res -eq 'OK'){ $f.SelectedPath }`
+		
+		out, err := exec.Command("powershell", "-NoProfile", "-Command", psScript).Output()
+		dir := strings.TrimSpace(string(out))
+		
 		fmt.Println("[GUI] nativeSelectDirectory returned:", dir)
-		if err != nil {
-			if err == zenity.ErrCanceled {
-				return map[string]interface{}{"files": nil}
-			}
-			return map[string]interface{}{"error": err.Error()}
+		if err != nil || dir == "" {
+			return map[string]interface{}{"files": nil}
 		}
 
 		files, err := ioutil.ReadDir(dir)
