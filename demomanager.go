@@ -418,7 +418,7 @@ func generateHTMLReport(filePath, mapName, serverName string) string {
 	}
 	defer f.Close()
 	
-	logoPath := `e:\fragmountdemos\dev\fMT-Demo-Manager\fragMount_white_nobg.svg`
+	logoPath := "fragMount_white_nobg.svg"
 	logoData, errLogo := os.ReadFile(logoPath)
 	logoBase64 := ""
 	if errLogo == nil {
