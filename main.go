@@ -2,15 +2,16 @@ package main
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
-
 	"os/exec"
 	"path/filepath"
 	"strings"
 
+	"github.com/ncruces/zenity"
 	"github.com/zserge/lorca"
 )
 
@@ -201,56 +202,71 @@ func main() {
 				}
 			}
 
-			// Hook into native Go functions bound by Lorca
-			async function selectFile() {
-				setBusy(true);
-				logMsg("Opening file browser...");
-				let result = await nativeSelectFile();
-				if (result.error) {
-					logMsg(result.error, "error");
-				} else if (result.path) {
-					logMsg("Processing " + result.path + "...");
-					let report = await nativeProcessDemo(result.path);
-					if (report.includes("Error")) {
-						logMsg(report, "error");
-					} else {
-						logMsg(report, "success");
-						updatePreview(result.path + ".report.html");
-					}
+			function handleFileSelected(path) {
+				if (path) {
+					logMsg("Processing " + path + "...");
+					processOne(path);
 				} else {
 					logMsg("Selection cancelled.");
 				}
 				setBusy(false);
 			}
 
-			async function selectDirectory() {
-				setBusy(true);
-				logMsg("Opening folder browser...");
-				let result = await nativeSelectDirectory();
-				if (result.error) {
-					logMsg(result.error, "error");
-				} else if (result.files && result.files.length > 0) {
-					logMsg("Found " + result.files.length + " demo(s). Starting batch process...");
-					let successes = 0;
-					for (let i = 0; i < result.files.length; i++) {
-						let file = result.files[i];
-						logMsg("[" + (i+1) + "/" + result.files.length + "] Processing " + file + "...");
-						let report = await nativeProcessDemo(result.files[i]);
-						if (report.includes("Error")) {
-							logMsg("  -> " + report, "error");
-						} else {
-							logMsg("  -> " + report, "success");
-							successes++;
-							updatePreview(file + ".report.html");
-						}
+			function handleDirectorySelected(filesJson) {
+				if (filesJson) {
+					const files = JSON.parse(filesJson);
+					if (files.length > 0) {
+						logMsg("Found " + files.length + " demo(s). Starting batch process...");
+						processBatch(files);
+					} else {
+						logMsg("No .dem files found in selected directory.", "error");
+						setBusy(false);
 					}
-					logMsg("Batch complete! Successfully processed " + successes + " demos.", "success");
-				} else if (result.files && result.files.length === 0) {
-					logMsg("No .dem files found in selected directory.", "error");
 				} else {
 					logMsg("Selection cancelled.");
+					setBusy(false);
 				}
+			}
+
+			async function processOne(path) {
+				let report = await nativeProcessDemo(path);
+				if (report.includes("Error")) {
+					logMsg(report, "error");
+				} else {
+					logMsg(report, "success");
+					updatePreview(path + ".report.html");
+				}
+			}
+
+			async function processBatch(files) {
+				let successes = 0;
+				for (let i = 0; i < files.length; i++) {
+					let file = files[i];
+					logMsg("[" + (i+1) + "/" + files.length + "] Processing " + file + "...");
+					let report = await nativeProcessDemo(file);
+					if (report.includes("Error")) {
+						logMsg("  -> " + report, "error");
+					} else {
+						logMsg("  -> " + report, "success");
+						successes++;
+						updatePreview(file + ".report.html");
+					}
+				}
+				logMsg("Batch complete! Successfully processed " + successes + " demos.", "success");
 				setBusy(false);
+			}
+
+			// Hook into native Go functions bound by Lorca
+			function selectFile() {
+				setBusy(true);
+				logMsg("Opening file browser...");
+				nativeSelectFile(); // Returns immediately, logic continues in handleFileSelected
+			}
+
+			function selectDirectory() {
+				setBusy(true);
+				logMsg("Opening folder browser...");
+				nativeSelectDirectory(); // Returns immediately, logic continues in handleDirectorySelected
 			}
 		</script>
 	</body>
@@ -279,49 +295,49 @@ func main() {
 	defer ui.Close()
 
 	// Bind native Go SelectFile function to Javascript globally
-	ui.Bind("nativeSelectFile", func() map[string]interface{} {
-		fmt.Println("[GUI] nativeSelectFile triggered")
-		
-		// PowerShell script to open file dialog (TopMost ensures it doesn't hide behind app)
-		psScript := `Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.OpenFileDialog; $f.Filter = 'Demo Files (*.dem)|*.dem'; $f.Title = 'Select fragMount Demo'; $res = $f.ShowDialog((New-Object System.Windows.Forms.Form -Property @{TopMost=$true})); if($res -eq 'OK'){ $f.FileName }`
-		
-		out, err := exec.Command("powershell", "-NoProfile", "-Command", psScript).Output()
-		filename := strings.TrimSpace(string(out))
-		
-		fmt.Println("[GUI] nativeSelectFile returned:", filename)
-		if err != nil || filename == "" {
-			return map[string]interface{}{"path": ""}
-		}
-		return map[string]interface{}{"path": filename}
+	// We use goroutines to avoid deadlocking the Lorca message loop
+	ui.Bind("nativeSelectFile", func() {
+		go func() {
+			fmt.Println("[GUI] nativeSelectFile triggered")
+			filename, _ := zenity.SelectFile(
+				zenity.Title("Select fragMount Demo"),
+				zenity.FileFilters{zenity.FileFilter{Name: "Demo File", Patterns: []string{"*.dem"}}},
+			)
+			fmt.Println("[GUI] nativeSelectFile returned:", filename)
+			
+			// Escape backslashes for JS string
+			safePath := strings.ReplaceAll(filename, "\\", "\\\\")
+			ui.Eval(fmt.Sprintf("handleFileSelected('%s')", safePath))
+		}()
 	})
 
-	ui.Bind("nativeSelectDirectory", func() map[string]interface{} {
-		fmt.Println("[GUI] nativeSelectDirectory triggered")
-		
-		// PowerShell script to open folder browser
-		psScript := `Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.FolderBrowserDialog; $f.Description = 'Select Demo Folder'; $res = $f.ShowDialog((New-Object System.Windows.Forms.Form -Property @{TopMost=$true})); if($res -eq 'OK'){ $f.SelectedPath }`
-		
-		out, err := exec.Command("powershell", "-NoProfile", "-Command", psScript).Output()
-		dir := strings.TrimSpace(string(out))
-		
-		fmt.Println("[GUI] nativeSelectDirectory returned:", dir)
-		if err != nil || dir == "" {
-			return map[string]interface{}{"files": nil}
-		}
-
-		files, err := ioutil.ReadDir(dir)
-		if err != nil {
-			return map[string]interface{}{"error": fmt.Sprintf("Failed to read directory: %v", err)}
-		}
-
-		var demFiles []string
-		for _, file := range files {
-			if !file.IsDir() && strings.HasSuffix(file.Name(), ".dem") {
-				demFiles = append(demFiles, filepath.Join(dir, file.Name()))
+	ui.Bind("nativeSelectDirectory", func() {
+		go func() {
+			fmt.Println("[GUI] nativeSelectDirectory triggered")
+			dir, _ := zenity.SelectFile(
+				zenity.Title("Select Demo Folder"),
+				zenity.Directory(),
+			)
+			fmt.Println("[GUI] nativeSelectDirectory returned:", dir)
+			
+			if dir == "" {
+				ui.Eval("handleDirectorySelected(null)")
+				return
 			}
-		}
 
-		return map[string]interface{}{"files": demFiles}
+			files, _ := ioutil.ReadDir(dir)
+			var demFiles []string
+			for _, file := range files {
+				if !file.IsDir() && strings.HasSuffix(file.Name(), ".dem") {
+					demFiles = append(demFiles, filepath.Join(dir, file.Name()))
+				}
+			}
+
+			// Encode results to JSON to pass safely back to JS
+			jsonFiles, _ := json.Marshal(demFiles)
+			safeJson := strings.ReplaceAll(string(jsonFiles), "\\", "\\\\")
+			ui.Eval(fmt.Sprintf("handleDirectorySelected('%s')", safeJson))
+		}()
 	})
 
 	// Bind demo manager processing engine
