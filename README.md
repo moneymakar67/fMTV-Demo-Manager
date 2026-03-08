@@ -14,3 +14,7 @@ Requires Go 1.21+ and a Chromium-based browser (Edge/Chrome).
 ```bash
 go build -ldflags="-H windowsgui" -o DemoManager.exe
 ```
+
+## Frequent Issues
+- **GUI Hanging**: Sometimes it will get stuck after clicking the buttons to load demos, if this happens, just restart and try again. (Note: Stability improvements have been implemented in recent versions, but this remains the recommended first step if a freeze occurs).
+
