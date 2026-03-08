@@ -9,6 +9,7 @@ import (
 
 	"path/filepath"
 	"strings"
+	"os/exec"
 
 	"github.com/ncruces/zenity"
 	"github.com/zserge/lorca"
@@ -44,6 +45,7 @@ func main() {
 				height: 100vh;
 				box-sizing: border-box;
 				overflow: hidden;
+				gap: 1rem;
 			}
 			.header {
 				display: flex;
@@ -82,10 +84,40 @@ func main() {
 			button:active {
 				transform: translateY(1px);
 			}
+			.preview-container {
+				width: 100%%;
+				max-width: 700px;
+				background: #000;
+				border: 1px solid #fff;
+				border-radius: 6px;
+				overflow: hidden;
+				display: flex;
+				flex-direction: column;
+			}
+			.preview-header {
+				background: #111;
+				padding: 0.5rem 1rem;
+				border-bottom: 1px solid #333;
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+			}
+			.preview-header span {
+				font-size: 0.8rem;
+				font-weight: bold;
+				text-transform: uppercase;
+				color: #888;
+			}
+			iframe {
+				border: none;
+				width: 100%%;
+				height: 450px;
+				background: #000;
+			}
 			.console {
 				width: 100%%;
-				max-width: 500px;
-				flex-grow: 1;
+				max-width: 700px;
+				height: 120px;
 				background: #0a0a0a;
 				border: 1px solid #333;
 				border-radius: 6px;
@@ -114,6 +146,14 @@ func main() {
 			<button onclick="selectFile()">Load Single Demo</button>
 			<button onclick="selectDirectory()">Process Folder</button>
 		</div>
+
+		<div class="preview-container" id="previewBox" style="display: none;">
+			<div class="preview-header">
+				<span>Live Preview</span>
+				<button onclick="openFullReport()" style="flex: none; padding: 4px 10px; font-size: 0.75rem;">View Full Report</button>
+			</div>
+			<iframe id="reportFrame"></iframe>
+		</div>
 		
 		<div class="console" id="logBox">
 			Waiting for input...
@@ -133,6 +173,24 @@ func main() {
 				lb.scrollTop = lb.scrollHeight;
 			}
 
+			let currentReportPath = "";
+
+			function updatePreview(path) {
+				const box = document.getElementById("previewBox");
+				const frame = document.getElementById("reportFrame");
+				currentReportPath = path;
+				
+				// Use a cache-buster query param so the iframe reloads even if name is the same
+				frame.src = "file:///" + path.replace(/\\/g, '/') + "?t=" + Date.now();
+				box.style.display = "flex";
+			}
+
+			function openFullReport() {
+				if (currentReportPath) {
+					nativeOpenInBrowser(currentReportPath);
+				}
+			}
+
 			// Hook into native Go functions bound by Lorca
 			async function selectFile() {
 				logMsg("Opening file browser...");
@@ -146,6 +204,7 @@ func main() {
 						logMsg(report, "error");
 					} else {
 						logMsg(report, "success");
+						updatePreview(result.path + ".report.html");
 					}
 				} else {
 					logMsg("Selection cancelled.");
@@ -169,6 +228,7 @@ func main() {
 						} else {
 							logMsg("  -> " + report, "success");
 							successes++;
+							updatePreview(file + ".report.html");
 						}
 					}
 					logMsg("Batch complete! Successfully processed " + successes + " demos.", "success");
@@ -197,8 +257,8 @@ func main() {
 	}
 	fileUrl := "file:///" + filepath.ToSlash(absPath)
 
-	// Init Lorca Window (600x500 borderless app format)
-	ui, err := lorca.New(fileUrl, "", 600, 500, "--remote-allow-origins=*")
+	// Init Lorca Window (800x850 expanded for preview)
+	ui, err := lorca.New(fileUrl, "", 800, 850, "--remote-allow-origins=*")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -249,6 +309,12 @@ func main() {
 	// Bind demo manager processing engine
 	ui.Bind("nativeProcessDemo", func(path string) string {
 		return AnalyzeDemo(path) // Directly calls our refactored backend logic
+	})
+
+	ui.Bind("nativeOpenInBrowser", func(path string) {
+		absPath, _ := filepath.Abs(path)
+		// On Windows, 'start' is a cmd builtin, so we call it via cmd /c
+		exec.Command("cmd", "/c", "start", absPath).Start()
 	})
 
 	// Wait until UI window is safely closed
