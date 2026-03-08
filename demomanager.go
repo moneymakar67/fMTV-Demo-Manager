@@ -94,6 +94,32 @@ func AnalyzeDemo(filePath string) string {
 			p.KastTraded = false
 		}
 		deathTicks = make(map[uint64]int)
+
+		// Check for 1vX situations at start of round
+		for _, team := range []common.Team{common.TeamTerrorists, common.TeamCounterTerrorists} {
+			otherTeam := common.TeamCounterTerrorists
+			if team == common.TeamCounterTerrorists { otherTeam = common.TeamTerrorists }
+			
+			aliveCount := 0
+			var lastAlive uint64 = 0
+			for _, p := range parser.GameState().Participants().Playing() {
+				if p != nil && p.Team == team && p.IsAlive() {
+					aliveCount++
+					lastAlive = p.SteamID64
+				}
+			}
+			
+			otherAlive := 0
+			for _, p := range parser.GameState().Participants().Playing() {
+				if p != nil && p.Team == otherTeam && p.IsAlive() {
+					otherAlive++
+				}
+			}
+			
+			if aliveCount == 1 && lastAlive != 0 && otherAlive > 0 {
+				potentialClutchers[team] = lastAlive
+			}
+		}
 	})
 	
 	// Player Death: Track Kills, Assists, Deaths
@@ -116,19 +142,31 @@ func AnalyzeDemo(filePath string) string {
 				p.KastSurvived = false
 			}
 			
-			// Detect Clutch logic (Victim died, check if 1 alive left on their team)
-			team := e.Victim.Team
-			aliveCount := 0
-			var lastAlive uint64 = 0
-			for _, p := range parser.GameState().Participants().Playing() {
-				if p != nil && p.Team == team && p.IsAlive() {
-					aliveCount++
-					lastAlive = p.SteamID64
+			// Detect Clutch logic (Check both teams)
+			for _, t := range []common.Team{common.TeamTerrorists, common.TeamCounterTerrorists} {
+				otherT := common.TeamCounterTerrorists
+				if t == common.TeamCounterTerrorists { otherT = common.TeamTerrorists }
+				
+				aliveCount := 0
+				var lastAlive uint64 = 0
+				for _, p := range parser.GameState().Participants().Playing() {
+					if p != nil && p.Team == t && p.IsAlive() {
+						aliveCount++
+						lastAlive = p.SteamID64
+					}
 				}
-			}
-			if aliveCount == 1 && lastAlive != 0 {
-				if _, exists := potentialClutchers[team]; !exists {
-					potentialClutchers[team] = lastAlive
+				
+				otherAlive := 0
+				for _, p := range parser.GameState().Participants().Playing() {
+					if p != nil && p.Team == otherT && p.IsAlive() {
+						otherAlive++
+					}
+				}
+				
+				if aliveCount == 1 && lastAlive != 0 && otherAlive > 0 {
+					if _, exists := potentialClutchers[t]; !exists {
+						potentialClutchers[t] = lastAlive
+					}
 				}
 			}
 		}
