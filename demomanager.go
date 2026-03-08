@@ -118,6 +118,7 @@ func AnalyzeDemo(filePath string) string {
 			
 			if aliveCount == 1 && lastAlive != 0 && otherAlive > 0 {
 				potentialClutchers[team] = lastAlive
+				fmt.Printf("[Stats] Potential Clutch: Player on team %v started round in 1v%d situation\n", team, otherAlive)
 			}
 		}
 	})
@@ -166,6 +167,7 @@ func AnalyzeDemo(filePath string) string {
 				if aliveCount == 1 && lastAlive != 0 && otherAlive > 0 {
 					if _, exists := potentialClutchers[t]; !exists {
 						potentialClutchers[t] = lastAlive
+						fmt.Printf("[Stats] Potential Clutch: Player on team %v is now in 1v%d situation\n", t, otherAlive)
 					}
 				}
 			}
