@@ -516,6 +516,28 @@ func generateHTMLReport(filePath, mapName, serverName string) string {
 			</div>
 	`, logoBase64, filepath.Base(filePath), mapName, serverName, totalRounds, score_T, score_CT)
 	
+	// Determine the baseline "first round" for ringer detection.
+	// Most players will join in the same round (round 1 or 2). 
+	// A ringer is someone who joined 3+ rounds after the baseline.
+	baselineRound := 1
+	if len(terrorists) + len(cts) > 0 {
+		// Find the most common FirstRound among all players
+		roundCounts := make(map[int]int)
+		for _, p := range terrorists {
+			if p.FirstRound > 0 { roundCounts[p.FirstRound]++ }
+		}
+		for _, p := range cts {
+			if p.FirstRound > 0 { roundCounts[p.FirstRound]++ }
+		}
+		maxCount := 0
+		for rd, count := range roundCounts {
+			if count > maxCount {
+				maxCount = count
+				baselineRound = rd
+			}
+		}
+	}
+	
 	// Track if legend is needed
 	hasRinger := false
 	hasLeaver := false
@@ -552,8 +574,8 @@ func generateHTMLReport(filePath, mapName, serverName string) string {
 			if totalRounds == 0 { adr = 0 }
 			
 			flags := ""
-			// If they weren't there for round 1
-			if p.FirstRound > 1 {
+			// If they joined 3+ rounds after the majority of players (actual ringer, not shuffle)
+			if p.FirstRound > baselineRound + 2 {
 				hasRinger = true
 				flags += ` <span style="color: #eab308; font-size: 0.8rem; font-weight: bold;" title="Ringer (Joined Late)">(R)</span>`
 			}
